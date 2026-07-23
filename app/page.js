@@ -5,6 +5,38 @@ import { useState, useEffect } from "react";
 const GOLD = "#C9A227";
 const GOLD_LIGHT = "#E8CE7A";
 
+// Maps a product URL's domain to your confirmed Retailer name,
+// so it doesn't need to be typed in by hand every time.
+const RETAILER_DOMAINS = {
+  "net-a-porter.com": "Net-a-Porter",
+  "mrporter.com": "Mr Porter",
+  "farfetch.com": "Farfetch",
+  "mytheresa.com": "Mytheresa",
+  "ssense.com": "SSENSE",
+  "selfridges.com": "Selfridges",
+  "harrods.com": "Harrods",
+  "theoutnet.com": "The Outnet",
+  "endclothing.com": "End Clothing",
+  "brownsfashion.com": "Browns Fashion",
+  "ln-cc.com": "LN-CC",
+  "coggles.com": "Coggles",
+  "flannels.com": "Flannels",
+  "harveynichols.com": "Harvey Nichols",
+  "wolfandbadger.com": "Wolf & Badger",
+};
+
+function detectRetailer(url) {
+  try {
+    const hostname = new URL(url).hostname.replace("www.", "");
+    for (const domain in RETAILER_DOMAINS) {
+      if (hostname.includes(domain)) return RETAILER_DOMAINS[domain];
+    }
+  } catch (e) {
+    // invalid URL - just leave retailer blank, user fills it in
+  }
+  return "";
+}
+
 export default function Home() {
   const [url, setUrl] = useState("");
   const [pageText, setPageText] = useState("");
@@ -53,7 +85,7 @@ export default function Home() {
       if (data.error) {
         setError(data.error);
       } else {
-        setForm({ retailer: "", ...data.extracted, product_url: data.product_url });
+        setForm({ retailer: detectRetailer(url), ...data.extracted, product_url: data.product_url });
       }
     } catch (e) {
       setError("Something went wrong. Check the link and pasted content and try again.");
@@ -174,6 +206,7 @@ export default function Home() {
             value={form.retailer}
             onChange={(v) => updateField("retailer", v)}
             placeholder="e.g. Net-a-Porter"
+            highlight={!form.retailer}
           />
           <Field label="Product name" value={form.product_name} onChange={(v) => updateField("product_name", v)} />
           <Field label="Description" value={form.description} onChange={(v) => updateField("description", v)} />
@@ -187,7 +220,12 @@ export default function Home() {
             <Field label="Currency" value={form.currency} onChange={(v) => updateField("currency", v)} />
           </div>
           <Field label="Sizes available (comma separated)" value={form.sizes_available} onChange={(v) => updateField("sizes_available", v)} />
-          <Field label="Image URL" value={form.image_url} onChange={(v) => updateField("image_url", v)} />
+          <Field
+            label="Image URL - right-click the main product photo on the page → 'Copy Image Address' → paste it here (this can't be auto-filled from pasted text)"
+            value={form.image_url}
+            onChange={(v) => updateField("image_url", v)}
+            highlight={!form.image_url}
+          />
           <Field label="Stock status" value={form.stock_status} onChange={(v) => updateField("stock_status", v)} />
           <Field label="Style tags (comma separated)" value={form.style_tags} onChange={(v) => updateField("style_tags", v)} />
 
@@ -250,10 +288,10 @@ export default function Home() {
   );
 }
 
-function Field({ label, value, onChange, placeholder }) {
+function Field({ label, value, onChange, placeholder, highlight }) {
   return (
     <div style={{ marginBottom: 12, flex: 1 }}>
-      <label style={{ display: "block", fontSize: 12, color: "#999", marginBottom: 4 }}>{label}</label>
+      <label style={{ display: "block", fontSize: 12, color: highlight ? "#ffb347" : "#999", marginBottom: 4 }}>{label}</label>
       <input
         type="text"
         value={value ?? ""}
@@ -263,7 +301,7 @@ function Field({ label, value, onChange, placeholder }) {
           width: "100%",
           padding: "8px 10px",
           borderRadius: 6,
-          border: "1px solid #333",
+          border: highlight ? "1px solid #ffb347" : "1px solid #333",
           background: "#0d0d0d",
           color: "#fff",
           boxSizing: "border-box",
