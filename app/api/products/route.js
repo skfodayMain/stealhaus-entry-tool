@@ -112,11 +112,6 @@ export async function POST(request) {
       );
     }
 
-    const discount_percentage =
-      original_price && sale_price
-        ? Math.round(((original_price - sale_price) / original_price) * 100)
-        : null;
-
     const now = new Date().toISOString();
 
     const styleTagsArray = style_tags
@@ -135,7 +130,6 @@ export async function POST(request) {
       currency: currency || null,
       current_price: sale_price || null,
       original_price: original_price || null,
-      discount_percentage,
       stock_status: stock_status || "Unknown",
       still_in_feed: true,
       date_first_imported: now,
