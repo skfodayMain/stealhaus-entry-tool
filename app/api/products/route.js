@@ -9,6 +9,19 @@ function slugify(name) {
     .replace(/(^-|-$)/g, "");
 }
 
+// Your database only accepts exactly 'men', 'women', or 'unisex' for gender
+// (see products_gender_check constraint). This maps common variants Claude
+// might return to the exact allowed value, or null if nothing matches -
+// null is always safe since gender is an optional column.
+function normalizeGender(value) {
+  if (!value) return null;
+  const v = value.toLowerCase().trim();
+  if (["men", "man", "menswear", "male"].includes(v)) return "men";
+  if (["women", "woman", "womenswear", "female"].includes(v)) return "women";
+  if (["unisex", "uni-sex"].includes(v)) return "unisex";
+  return null;
+}
+
 // Find a brand by name, or create it if it doesn't exist yet. Returns the brand id.
 async function getOrCreateBrandId(brandName) {
   const { data: found } = await supabase
@@ -124,7 +137,7 @@ export async function POST(request) {
       name: product_name,
       description: description || null,
       category: category || null,
-      gender: gender || null,
+      gender: normalizeGender(gender),
       image_url: image_url || null,
       product_url,
       // Your products table requires affiliate_url on every row, but you don't
