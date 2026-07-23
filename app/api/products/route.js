@@ -127,6 +127,11 @@ export async function POST(request) {
       gender: gender || null,
       image_url: image_url || null,
       product_url,
+      // Your products table requires affiliate_url on every row, but you don't
+      // have real affiliate links yet - using the plain product link as a
+      // stand-in for now. Once you're approved for an affiliate programme,
+      // this can be swapped for the real tracked link.
+      affiliate_url: product_url,
       currency: currency || null,
       current_price: sale_price || null,
       original_price: original_price || null,
