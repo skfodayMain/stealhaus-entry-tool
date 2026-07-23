@@ -1,46 +1,30 @@
 import { NextResponse } from "next/server";
 
 // This route:
-// 1. Fetches the product page you pasted a link for
-// 2. Sends the page text to Claude with instructions to pull out specific fields
+// 1. Takes the page text YOU copied and pasted from your own browser
+//    (this avoids retailer sites blocking automated server requests)
+// 2. Sends that text to Claude with instructions to pull out specific fields
 // 3. Returns clean JSON back to the front end for you to review before saving
 
 export async function POST(request) {
   try {
-    const { url } = await request.json();
+    const { url, pageText } = await request.json();
 
     if (!url) {
       return NextResponse.json({ error: "No URL provided" }, { status: 400 });
     }
-
-    // Step 1: fetch the page HTML
-    const pageResponse = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
-      },
-    });
-
-    if (!pageResponse.ok) {
+    if (!pageText || pageText.trim().length < 50) {
       return NextResponse.json(
-        { error: `Could not load that page (status ${pageResponse.status}). It may be sold out, moved, or blocking automated requests.` },
-        { status: 502 }
+        { error: "Paste the product page content into the box below the link first." },
+        { status: 400 }
       );
     }
 
-    const html = await pageResponse.text();
+    // Trim to a safe length so we don't send huge, costly requests to Claude
+    // for one product page.
+    const plainText = pageText.trim().slice(0, 15000);
 
-    // Strip tags down to plain text and trim to a safe length so we don't
-    // send huge, costly requests to Claude for one product page.
-    const plainText = html
-      .replace(/<script[\s\S]*?<\/script>/gi, " ")
-      .replace(/<style[\s\S]*?<\/style>/gi, " ")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 15000);
-
-    // Step 2: ask Claude to extract the fields we need, as JSON only
+    // Ask Claude to extract the fields we need, as JSON only
     const claudeResponse = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -74,7 +58,7 @@ Return ONLY a JSON object (no markdown, no preamble, no code fences) with exactl
   "sale_price": null,       // number only, no currency symbol
   "currency": "",           // e.g. GBP, USD, EUR
   "sizes_available": "",    // comma separated, or "One Size"
-  "image_url": "",          // the main product image, full URL
+  "image_url": "",          // the main product image, full URL - if not visible in the pasted text, leave blank
   "stock_status": "",       // one of: In Stock, Low Stock, One Left, Sold Out, Unknown
   "style_tags": ""          // comma separated short tags if obvious, e.g. "leather, ankle boot" - else ""
 }
@@ -112,3 +96,4 @@ If you cannot confidently find a field, use an empty string ("") or null rather 
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+
