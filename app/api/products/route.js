@@ -22,6 +22,19 @@ function normalizeGender(value) {
   return null;
 }
 
+// Your database only accepts exactly 'in_stock', 'low_stock', or 'out_of_stock'
+// for stock_status (see products_stock_status_check constraint). This maps
+// whatever comes back from extraction (or manual typing) to the exact
+// allowed value, or null if nothing matches.
+function normalizeStockStatus(value) {
+  if (!value) return null;
+  const v = value.toLowerCase().trim().replace(/\s+/g, "_");
+  if (["in_stock", "instock"].includes(v)) return "in_stock";
+  if (["low_stock", "one_left", "lowstock"].includes(v)) return "low_stock";
+  if (["out_of_stock", "sold_out", "soldout", "outofstock"].includes(v)) return "out_of_stock";
+  return null;
+}
+
 // Find a brand by name, or create it if it doesn't exist yet. Returns the brand id.
 async function getOrCreateBrandId(brandName) {
   const { data: found } = await supabase
@@ -148,7 +161,7 @@ export async function POST(request) {
       currency: currency || null,
       current_price: sale_price || null,
       original_price: original_price || null,
-      stock_status: stock_status || "Unknown",
+      stock_status: normalizeStockStatus(stock_status),
       still_in_feed: true,
       date_first_imported: now,
       date_last_checked: now,
@@ -187,7 +200,7 @@ export async function POST(request) {
         const variantRows = sizes.map((size) => ({
           product_id: product.id,
           size,
-          stock_available: stock_status !== "Sold Out",
+          stock_available: normalizeStockStatus(stock_status) !== "out_of_stock",
         }));
 
         const { error: variantError } = await supabase
