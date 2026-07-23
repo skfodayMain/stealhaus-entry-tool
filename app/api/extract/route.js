@@ -59,7 +59,7 @@ Return ONLY a JSON object (no markdown, no preamble, no code fences) with exactl
   "currency": "",           // e.g. GBP, USD, EUR
   "sizes_available": "",    // comma separated, or "One Size"
   "image_url": "",          // the main product image, full URL - if not visible in the pasted text, leave blank
-  "stock_status": "",       // one of: In Stock, Low Stock, One Left, Sold Out, Unknown
+  "stock_status": "",       // exactly one of: in_stock, low_stock, out_of_stock (lowercase, underscore) - use low_stock if only one or a few remain
   "style_tags": ""          // comma separated short tags if obvious, e.g. "leather, ankle boot" - else ""
 }
 
