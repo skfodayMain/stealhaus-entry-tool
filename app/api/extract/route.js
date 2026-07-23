@@ -51,7 +51,7 @@ Return ONLY a JSON object (no markdown, no preamble, no code fences) with exactl
 {
   "brand": "",
   "category": "",           // e.g. Clothing, Shoes, Bags, Jewellery, Watches, Sunglasses, Optical Glasses - be specific, this is a free text field
-  "gender": "",             // Womenswear, Menswear, or Unisex - best guess from the page
+  "gender": "",              // exactly one of: men, women, unisex (lowercase, singular) - best guess from the page
   "product_name": "",
   "description": "",        // one short sentence describing the item, or "" if not clearly stated
   "original_price": null,   // number only, no currency symbol
