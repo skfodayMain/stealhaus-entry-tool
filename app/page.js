@@ -226,7 +226,7 @@ export default function Home() {
             onChange={(v) => updateField("image_url", v)}
             highlight={!form.image_url}
           />
-          <Field label="Stock status" value={form.stock_status} onChange={(v) => updateField("stock_status", v)} />
+          <Field label="Stock status (in_stock, low_stock, or out_of_stock)" value={form.stock_status} onChange={(v) => updateField("stock_status", v)} />
           <Field label="Style tags (comma separated)" value={form.style_tags} onChange={(v) => updateField("style_tags", v)} />
 
           {duplicateWarning && (
