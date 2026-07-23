@@ -7,6 +7,7 @@ const GOLD_LIGHT = "#E8CE7A";
 
 export default function Home() {
   const [url, setUrl] = useState("");
+  const [pageText, setPageText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState(null);
@@ -37,12 +38,16 @@ export default function Home() {
       setError("Paste a product link first.");
       return;
     }
+    if (!pageText.trim() || pageText.trim().length < 50) {
+      setError("Paste the page content into the box below the link too (select all on the product page, copy, then paste it in).");
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url, pageText }),
       });
       const data = await res.json();
       if (data.error) {
@@ -51,7 +56,7 @@ export default function Home() {
         setForm({ retailer: "", ...data.extracted, product_url: data.product_url });
       }
     } catch (e) {
-      setError("Something went wrong fetching that page. Check the link and try again.");
+      setError("Something went wrong. Check the link and pasted content and try again.");
     }
     setLoading(false);
   }
@@ -79,6 +84,7 @@ export default function Home() {
         setSavedMsg("Saved to your database.");
         setForm(null);
         setUrl("");
+        setPageText("");
         setDuplicateWarning(null);
         loadRecent();
       }
@@ -130,6 +136,28 @@ export default function Home() {
           </button>
         </div>
         {error && <p style={{ color: "#ff8080", marginTop: 12 }}>{error}</p>}
+
+        <label style={{ display: "block", marginTop: 16, marginBottom: 8, fontSize: 14, color: "#ccc" }}>
+          Page content (open the link above in your browser, press Cmd+A then Cmd+C to copy the whole page, then paste it here)
+        </label>
+        <textarea
+          value={pageText}
+          onChange={(e) => setPageText(e.target.value)}
+          placeholder="Paste the copied page content here..."
+          rows={6}
+          style={{
+            width: "100%",
+            padding: "10px 12px",
+            borderRadius: 6,
+            border: "1px solid #333",
+            background: "#0d0d0d",
+            color: "#fff",
+            boxSizing: "border-box",
+            fontFamily: "inherit",
+            fontSize: 13,
+            resize: "vertical",
+          }}
+        />
       </div>
 
       {/* Review / edit form */}
