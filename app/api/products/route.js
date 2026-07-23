@@ -111,21 +111,18 @@ export async function POST(request) {
       );
     }
 
-    // Duplicate check on the product's URL
-    const { data: existing, error: checkError } = await supabase
+    // Duplicate check #1: exact Product URL match
+    const { data: urlMatches, error: urlCheckError } = await supabase
       .from("products")
       .select("id, name, product_url")
       .eq("product_url", product_url);
 
-    if (checkError) {
-      return NextResponse.json({ error: checkError.message }, { status: 500 });
+    if (urlCheckError) {
+      return NextResponse.json({ error: urlCheckError.message }, { status: 500 });
     }
 
-    if (existing && existing.length > 0 && !force) {
-      return NextResponse.json({ duplicate: true, matches: existing });
-    }
-
-    // Resolve brand + retailer to their IDs
+    // Resolve brand + retailer to their IDs (needed for both the backup
+    // duplicate check below and the eventual insert)
     const brandId = await getOrCreateBrandId(brand);
     const retailerId = await getRetailerId(retailer);
 
@@ -136,6 +133,31 @@ export async function POST(request) {
         },
         { status: 400 }
       );
+    }
+
+    // Duplicate check #2 (backup): same Brand + same Product Name, even if
+    // the URL is different - catches things like colour-variant links or a
+    // retailer changing their URL structure, which check #1 alone would miss.
+    const { data: nameMatches, error: nameCheckError } = await supabase
+      .from("products")
+      .select("id, name, product_url")
+      .eq("brand_id", brandId)
+      .ilike("name", product_name);
+
+    if (nameCheckError) {
+      return NextResponse.json({ error: nameCheckError.message }, { status: 500 });
+    }
+
+    // Merge both checks, removing any duplicate rows found by both
+    const seen = new Set();
+    const allMatches = [...(urlMatches || []), ...(nameMatches || [])].filter((m) => {
+      if (seen.has(m.id)) return false;
+      seen.add(m.id);
+      return true;
+    });
+
+    if (allMatches.length > 0 && !force) {
+      return NextResponse.json({ duplicate: true, matches: allMatches });
     }
 
     const now = new Date().toISOString();
