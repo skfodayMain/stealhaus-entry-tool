@@ -5,308 +5,378 @@ import { useState, useEffect } from "react";
 const GOLD = "#C9A227";
 const GOLD_LIGHT = "#E8CE7A";
 
-// Maps a product URL's domain to your confirmed Retailer name,
-// so it doesn't need to be typed in by hand every time.
-const RETAILER_DOMAINS = {
-  "net-a-porter.com": "Net-a-Porter",
-  "mrporter.com": "Mr Porter",
-  "farfetch.com": "Farfetch",
-  "mytheresa.com": "Mytheresa",
-  "ssense.com": "SSENSE",
-  "selfridges.com": "Selfridges",
-  "harrods.com": "Harrods",
-  "theoutnet.com": "The Outnet",
-  "endclothing.com": "End Clothing",
-  "brownsfashion.com": "Browns Fashion",
-  "ln-cc.com": "LN-CC",
-  "coggles.com": "Coggles",
-  "flannels.com": "Flannels",
-  "harveynichols.com": "Harvey Nichols",
-  "wolfandbadger.com": "Wolf & Badger",
-};
-
-function detectRetailer(url) {
-  try {
-    const hostname = new URL(url).hostname.replace("www.", "");
-    for (const domain in RETAILER_DOMAINS) {
-      if (hostname.includes(domain)) return RETAILER_DOMAINS[domain];
-    }
-  } catch (e) {
-    // invalid URL - just leave retailer blank, user fills it in
-  }
-  return "";
-}
-
-export default function Home() {
-  const [url, setUrl] = useState("");
-  const [pageText, setPageText] = useState("");
-  const [loading, setLoading] = useState(false);
+export default function ManagePage() {
+  const [products, setProducts] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [form, setForm] = useState(null);
-  const [duplicateWarning, setDuplicateWarning] = useState(null);
-  const [recent, setRecent] = useState([]);
-  const [savedMsg, setSavedMsg] = useState("");
+  const [editingProduct, setEditingProduct] = useState(null);
 
   useEffect(() => {
-    loadRecent();
-  }, []);
+    loadProducts(page);
+  }, [page]);
 
-  async function loadRecent() {
+  async function loadProducts(pageNum) {
+    setLoading(true);
+    setError("");
     try {
-      const res = await fetch("/api/products");
+      const res = await fetch(`/api/admin-products?page=${pageNum}`);
       const data = await res.json();
-      if (data.recent) setRecent(data.recent);
+      if (data.error) {
+        setError(data.error);
+      } else {
+        setProducts(data.products);
+        setTotalPages(data.totalPages);
+        setTotalCount(data.totalCount);
+      }
     } catch (e) {
-      // silent fail on recent list - not critical
+      setError(e.message);
+    }
+    setLoading(false);
+  }
+
+  async function handleDelete(id, mode) {
+    const confirmMsg =
+      mode === "permanent"
+        ? "Delete this permanently? This cannot be undone."
+        : "Hide this item from the shop and feed? You can still find it later, it won't show as live.";
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      const res = await fetch(`/api/admin-products/${id}?mode=${mode}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.error) {
+        setError(data.error);
+      } else {
+        loadProducts(page);
+      }
+    } catch (e) {
+      setError(e.message);
     }
   }
 
-  async function handleExtract() {
-    setError("");
-    setSavedMsg("");
-    setDuplicateWarning(null);
-    setForm(null);
-    if (!url.trim()) {
-      setError("Paste a product link first.");
-      return;
-    }
-    if (!pageText.trim() || pageText.trim().length < 50) {
-      setError("Paste the page content into the box below the link too (select all on the product page, copy, then paste it in).");
-      return;
-    }
-    setLoading(true);
+  async function handleSaveEdit(updatedFields) {
     try {
-      const res = await fetch("/api/extract", {
-        method: "POST",
+      const res = await fetch(`/api/admin-products/${editingProduct.id}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, pageText }),
+        body: JSON.stringify(updatedFields),
       });
       const data = await res.json();
       if (data.error) {
         setError(data.error);
       } else {
-        setForm({ retailer: detectRetailer(url), ...data.extracted, product_url: data.product_url });
+        setEditingProduct(null);
+        loadProducts(page);
       }
     } catch (e) {
-      setError("Something went wrong. Check the link and pasted content and try again.");
+      setError(e.message);
     }
-    setLoading(false);
-  }
-
-  function updateField(key, value) {
-    setForm((f) => ({ ...f, [key]: value }));
-  }
-
-  async function handleSave(force = false) {
-    setError("");
-    setSavedMsg("");
-    setLoading(true);
-    try {
-      const res = await fetch("/api/products", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, force }),
-      });
-      const data = await res.json();
-      if (data.error) {
-        setError(data.error);
-      } else if (data.duplicate) {
-        setDuplicateWarning(data.matches);
-      } else if (data.saved) {
-        setSavedMsg("Saved to your database.");
-        setForm(null);
-        setUrl("");
-        setPageText("");
-        setDuplicateWarning(null);
-        loadRecent();
-      }
-    } catch (e) {
-      setError("Could not save. Check your connection and try again.");
-    }
-    setLoading(false);
   }
 
   return (
-    <main style={{ maxWidth: 720, margin: "0 auto", padding: "40px 20px", color: "#f5f5f5" }}>
-      <h1 style={{ color: GOLD_LIGHT, fontSize: 26, marginBottom: 4 }}>
-        <img src="/logo.png" alt="StealHaus" style={{ height: 40, verticalAlign: "middle", marginRight: 10 }} />
-      </h1>
-      <p style={{ color: "#aaa", marginTop: 0, marginBottom: 32 }}>Product entry tool</p>
+    <main style={{ minHeight: "100vh", background: "#0d0d0d", color: "#f5f5f5", fontFamily: "system-ui, sans-serif", padding: "32px 24px" }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+        <img src="/logo.png" alt="StealHaus" style={{ height: 40, marginBottom: 4 }} />
+        <p style={{ color: "#999", margin: "4px 0 24px" }}>
+          Manage Products · {totalCount} total items - page {page} of {totalPages || 1}
+        </p>
 
-      {/* Paste link section */}
-      <div style={{ background: "#1a1a1a", borderRadius: 10, padding: 20, marginBottom: 24 }}>
-        <label style={{ display: "block", marginBottom: 8, fontSize: 14, color: "#ccc" }}>
-          Product page link
-        </label>
-        <div style={{ display: "flex", gap: 8 }}>
-          <input
-            type="text"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://www.net-a-porter.com/..."
-            style={{
-              flex: 1,
-              padding: "10px 12px",
-              borderRadius: 6,
-              border: "1px solid #333",
-              background: "#0d0d0d",
-              color: "#fff",
-            }}
-          />
-          <button
-            onClick={handleExtract}
-            disabled={loading}
-            style={{
-              padding: "10px 18px",
-              borderRadius: 6,
-              border: "none",
-              background: GOLD,
-              color: "#111",
-              fontWeight: 600,
-              cursor: loading ? "not-allowed" : "pointer",
-            }}
-          >
-            {loading ? "Working..." : "Get details"}
-          </button>
-        </div>
-        {error && <p style={{ color: "#ff8080", marginTop: 12 }}>{error}</p>}
+        {error && <p style={{ color: "#ff8080" }}>{error}</p>}
+        {loading && <p style={{ color: "#777" }}>Loading...</p>}
 
-        <label style={{ display: "block", marginTop: 16, marginBottom: 8, fontSize: 14, color: "#ccc" }}>
-          Page content (open the link above in your browser, press Cmd+A then Cmd+C to copy the whole page, then paste it here)
-        </label>
-        <textarea
-          value={pageText}
-          onChange={(e) => setPageText(e.target.value)}
-          placeholder="Paste the copied page content here..."
-          rows={6}
-          style={{
-            width: "100%",
-            padding: "10px 12px",
-            borderRadius: 6,
-            border: "1px solid #333",
-            background: "#0d0d0d",
-            color: "#fff",
-            boxSizing: "border-box",
-            fontFamily: "inherit",
-            fontSize: 13,
-            resize: "vertical",
-          }}
-        />
-      </div>
-
-      {/* Review / edit form */}
-      {form && (
-        <div style={{ background: "#1a1a1a", borderRadius: 10, padding: 20, marginBottom: 24 }}>
-          <h2 style={{ fontSize: 16, color: GOLD_LIGHT, marginTop: 0 }}>Review before saving</h2>
-          <p style={{ color: "#999", fontSize: 13, marginTop: -8 }}>
-            Check every field. Claude's read of the page can be wrong — fix anything before saving.
-          </p>
-
-          <Field label="Brand" value={form.brand} onChange={(v) => updateField("brand", v)} />
-          <Field
-            label="Retailer (must match your Retailers table exactly)"
-            value={form.retailer}
-            onChange={(v) => updateField("retailer", v)}
-            placeholder="e.g. Net-a-Porter"
-            highlight={!form.retailer}
-          />
-          <Field label="Product name" value={form.product_name} onChange={(v) => updateField("product_name", v)} />
-          <Field label="Description" value={form.description} onChange={(v) => updateField("description", v)} />
-          <div style={{ display: "flex", gap: 12 }}>
-            <Field label="Category" value={form.category} onChange={(v) => updateField("category", v)} />
-            <Field label="Gender" value={form.gender} onChange={(v) => updateField("gender", v)} />
-          </div>
-          <div style={{ display: "flex", gap: 12 }}>
-            <Field label="Original price" value={form.original_price} onChange={(v) => updateField("original_price", v)} />
-            <Field label="Sale price" value={form.sale_price} onChange={(v) => updateField("sale_price", v)} />
-            <Field label="Currency" value={form.currency} onChange={(v) => updateField("currency", v)} />
-          </div>
-          <Field label="Sizes available (comma separated)" value={form.sizes_available} onChange={(v) => updateField("sizes_available", v)} />
-          <Field
-            label="Image URL - right-click the main product photo on the page → 'Copy Image Address' → paste it here (this can't be auto-filled from pasted text)"
-            value={form.image_url}
-            onChange={(v) => updateField("image_url", v)}
-            highlight={!form.image_url}
-          />
-          <Field label="Stock status (in_stock, low_stock, or out_of_stock)" value={form.stock_status} onChange={(v) => updateField("stock_status", v)} />
-          <Field label="Style tags (comma separated)" value={form.style_tags} onChange={(v) => updateField("style_tags", v)} />
-
-          {duplicateWarning && (
-            <div style={{ background: "#3a2a10", border: `1px solid ${GOLD}`, borderRadius: 6, padding: 12, marginTop: 12 }}>
-              <p style={{ margin: 0, color: GOLD_LIGHT, fontWeight: 600 }}>Possible duplicate found</p>
-              <ul style={{ margin: "8px 0 0", paddingLeft: 18, color: "#ddd", fontSize: 13 }}>
-                {duplicateWarning.map((m) => (
-                  <li key={m.id}>{m.name}</li>
-                ))}
-              </ul>
-              <button
-                onClick={() => handleSave(true)}
-                style={{ marginTop: 10, padding: "6px 12px", borderRadius: 6, border: "1px solid #666", background: "transparent", color: "#fff", cursor: "pointer" }}
-              >
-                Save anyway
-              </button>
-            </div>
-          )}
-
-          {!duplicateWarning && (
-            <button
-              onClick={() => handleSave(false)}
-              disabled={loading}
-              style={{
-                marginTop: 12,
-                padding: "10px 20px",
-                borderRadius: 6,
-                border: "none",
-                background: GOLD,
-                color: "#111",
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              {loading ? "Saving..." : "Save to database"}
-            </button>
-          )}
-        </div>
-      )}
-
-      {savedMsg && <p style={{ color: "#8fd88f" }}>{savedMsg}</p>}
-
-      {/* Recent 5 */}
-      <div style={{ marginTop: 40 }}>
-        <h2 style={{ fontSize: 16, color: GOLD_LIGHT }}>Last 5 items added</h2>
-        {recent.length === 0 && <p style={{ color: "#777" }}>Nothing added yet.</p>}
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {recent.map((item) => (
-            <div key={item.id} style={{ background: "#1a1a1a", borderRadius: 8, padding: 12, fontSize: 14 }}>
-              <strong style={{ color: GOLD_LIGHT }}>{item.brands?.name}</strong> — {item.name}
-              <div style={{ color: "#999", fontSize: 12, marginTop: 4 }}>
-                {item.retailers?.name} · {item.currency} {item.current_price} · {item.stock_status}
-              </div>
-            </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {products.map((p) => (
+            <ProductRow
+              key={p.id}
+              product={p}
+              onEdit={() => setEditingProduct(p)}
+              onDelete={handleDelete}
+            />
           ))}
         </div>
+
+        {!loading && products.length === 0 && (
+          <p style={{ color: "#666", padding: 40, textAlign: "center" }}>No products found.</p>
+        )}
+
+        {/* Pagination */}
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 12, marginTop: 32 }}>
+          <PageButton disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+            ← Previous
+          </PageButton>
+          <span style={{ color: "#999", fontSize: 13 }}>
+            Page {page} of {totalPages || 1}
+          </span>
+          <PageButton disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+            Next →
+          </PageButton>
+        </div>
       </div>
+
+      {editingProduct && (
+        <EditModal
+          product={editingProduct}
+          onCancel={() => setEditingProduct(null)}
+          onSave={handleSaveEdit}
+        />
+      )}
     </main>
   );
 }
 
-function Field({ label, value, onChange, placeholder, highlight }) {
+function PageButton({ children, disabled, onClick }) {
+  return (
+    <button
+      disabled={disabled}
+      onClick={onClick}
+      style={{
+        padding: "6px 14px",
+        borderRadius: 6,
+        border: "1px solid #333",
+        background: disabled ? "#151515" : "#1a1a1a",
+        color: disabled ? "#555" : "#ccc",
+        fontSize: 13,
+        cursor: disabled ? "not-allowed" : "pointer",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function ProductRow({ product, onEdit, onDelete }) {
+  const link = product.product_url;
+  const statusColors = {
+    in_stock: "#8fd88f",
+    low_stock: GOLD_LIGHT,
+    out_of_stock: "#999",
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        background: "#1a1a1a",
+        borderRadius: 8,
+        padding: 12,
+        opacity: product.still_in_feed ? 1 : 0.5,
+      }}
+    >
+      <div style={{ width: 56, height: 56, borderRadius: 6, overflow: "hidden", background: "#111", flexShrink: 0 }}>
+        {product.image_url ? (
+          <img src={product.image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        ) : null}
+      </div>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ margin: 0, fontSize: 12, color: GOLD_LIGHT }}>{product.brands?.name}</p>
+        <p style={{ margin: "2px 0", fontSize: 14, color: "#eee", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {product.name}
+        </p>
+        <p style={{ margin: 0, fontSize: 12, color: "#888" }}>
+          {product.retailers?.name} · {product.currency} {product.current_price}
+          {!product.still_in_feed && <span style={{ color: "#ff8080" }}> · Hidden</span>}
+        </p>
+      </div>
+
+      <span
+        style={{
+          fontSize: 11,
+          padding: "3px 8px",
+          borderRadius: 4,
+          background: "#111",
+          color: statusColors[product.stock_status] || "#888",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {product.stock_status || "unknown"}
+      </span>
+
+      <a
+        href={link}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ fontSize: 12, color: GOLD, whiteSpace: "nowrap", textDecoration: "underline" }}
+      >
+        Check retailer ↗
+      </a>
+
+      <button
+        onClick={onEdit}
+        style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid #333", background: "transparent", color: "#ccc", fontSize: 12, cursor: "pointer" }}
+      >
+        Edit
+      </button>
+      <button
+        onClick={() => onDelete(product.id, "hide")}
+        style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid #333", background: "transparent", color: "#ccc", fontSize: 12, cursor: "pointer" }}
+      >
+        {product.still_in_feed ? "Hide" : "Unhide"}
+      </button>
+      <button
+        onClick={() => onDelete(product.id, "permanent")}
+        style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid #442222", background: "transparent", color: "#ff8080", fontSize: 12, cursor: "pointer" }}
+      >
+        Delete
+      </button>
+    </div>
+  );
+}
+
+function EditModal({ product, onCancel, onSave }) {
+  const [form, setForm] = useState({
+    name: product.name || "",
+    description: product.description || "",
+    category: product.category || "",
+    gender: product.gender || "",
+    current_price: product.current_price || "",
+    original_price: product.original_price || "",
+    currency: product.currency || "",
+    stock_status: product.stock_status || "",
+    product_url: product.product_url || "",
+    affiliate_url: product.affiliate_url || "",
+    image_url: product.image_url || "",
+    still_in_feed: product.still_in_feed,
+  });
+  const [imageUrls, setImageUrls] = useState(
+    product.image_urls && product.image_urls.length > 0 ? product.image_urls : [""]
+  );
+
+  function update(key, value) {
+    setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  function updateImageUrl(index, value) {
+    setImageUrls((prev) => prev.map((url, i) => (i === index ? value : url)));
+  }
+
+  function addImageUrlField() {
+    setImageUrls((prev) => [...prev, ""]);
+  }
+
+  function removeImageUrlField(index) {
+    setImageUrls((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function handleSubmit() {
+    onSave({
+      ...form,
+      image_urls: imageUrls.map((u) => u.trim()).filter(Boolean),
+    });
+  }
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.7)",
+        display: "flex",
+        alignItems: "flex-start",
+        justifyContent: "center",
+        padding: "40px 20px",
+        overflowY: "auto",
+        zIndex: 100,
+      }}
+    >
+      <div style={{ background: "#1a1a1a", borderRadius: 10, padding: 24, maxWidth: 560, width: "100%" }}>
+        <h2 style={{ color: GOLD_LIGHT, fontSize: 18, marginTop: 0 }}>Edit product</h2>
+
+        <Field label="Product name" value={form.name} onChange={(v) => update("name", v)} />
+        <Field label="Description" value={form.description} onChange={(v) => update("description", v)} />
+        <div style={{ display: "flex", gap: 12 }}>
+          <Field label="Category" value={form.category} onChange={(v) => update("category", v)} />
+          <Field label="Gender (men/women/unisex)" value={form.gender} onChange={(v) => update("gender", v)} />
+        </div>
+        <div style={{ display: "flex", gap: 12 }}>
+          <Field label="Original price" value={form.original_price} onChange={(v) => update("original_price", v)} />
+          <Field label="Sale price" value={form.current_price} onChange={(v) => update("current_price", v)} />
+          <Field label="Currency" value={form.currency} onChange={(v) => update("currency", v)} />
+        </div>
+        <Field label="Stock status (in_stock / low_stock / out_of_stock)" value={form.stock_status} onChange={(v) => update("stock_status", v)} />
+        <Field label="Product URL" value={form.product_url} onChange={(v) => update("product_url", v)} />
+        <Field label="Affiliate URL (leave same as product URL until approved)" value={form.affiliate_url} onChange={(v) => update("affiliate_url", v)} />
+        <Field label="Main image URL" value={form.image_url} onChange={(v) => update("image_url", v)} />
+
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ display: "block", fontSize: 12, color: "#999", marginBottom: 6 }}>
+            Additional images (for the future Instagram/TikTok feed - not shown on the shop grid)
+          </label>
+          {imageUrls.map((url, i) => (
+            <div key={i} style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+              <input
+                type="text"
+                value={url}
+                onChange={(e) => updateImageUrl(i, e.target.value)}
+                placeholder="https://..."
+                style={{ flex: 1, padding: "6px 10px", borderRadius: 6, border: "1px solid #333", background: "#0d0d0d", color: "#fff", fontSize: 13 }}
+              />
+              <button
+                onClick={() => removeImageUrlField(i)}
+                style={{ padding: "0 10px", borderRadius: 6, border: "1px solid #333", background: "transparent", color: "#999", cursor: "pointer" }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          <button
+            onClick={addImageUrlField}
+            style={{ fontSize: 12, color: GOLD_LIGHT, background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
+          >
+            + Add another image
+          </button>
+        </div>
+
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#ccc", marginBottom: 20, cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={form.still_in_feed}
+            onChange={(e) => update("still_in_feed", e.target.checked)}
+          />
+          Visible on shop page and feed
+        </label>
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            onClick={handleSubmit}
+            style={{ padding: "10px 20px", borderRadius: 6, border: "none", background: GOLD, color: "#111", fontWeight: 600, cursor: "pointer" }}
+          >
+            Save changes
+          </button>
+          <button
+            onClick={onCancel}
+            style={{ padding: "10px 20px", borderRadius: 6, border: "1px solid #333", background: "transparent", color: "#ccc", cursor: "pointer" }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, value, onChange }) {
   return (
     <div style={{ marginBottom: 12, flex: 1 }}>
-      <label style={{ display: "block", fontSize: 12, color: highlight ? "#ffb347" : "#999", marginBottom: 4 }}>{label}</label>
+      <label style={{ display: "block", fontSize: 12, color: "#999", marginBottom: 4 }}>{label}</label>
       <input
         type="text"
         value={value ?? ""}
-        placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
         style={{
           width: "100%",
           padding: "8px 10px",
           borderRadius: 6,
-          border: highlight ? "1px solid #ffb347" : "1px solid #333",
+          border: "1px solid #333",
           background: "#0d0d0d",
           color: "#fff",
           boxSizing: "border-box",
+          fontSize: 13,
         }}
       />
     </div>
