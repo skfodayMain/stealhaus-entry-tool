@@ -113,7 +113,7 @@ export default function ShopPage() {
     <main style={{ minHeight: "100vh", background: "#0d0d0d", color: "#f5f5f5", fontFamily: "system-ui, sans-serif" }}>
       {/* Header */}
       <div style={{ padding: "32px 20px 16px", borderBottom: "1px solid #222" }}>
-        <h1 style={{ color: GOLD_LIGHT, fontSize: 28, margin: 0, letterSpacing: 1 }}>STEALHAUS</h1>
+        <img src="/logo.png" alt="StealHaus" style={{ height: 48, marginBottom: 4 }} />
         <p style={{ color: "#999", margin: "4px 0 20px" }}>Shop the Edit</p>
 
         {/* Search */}
