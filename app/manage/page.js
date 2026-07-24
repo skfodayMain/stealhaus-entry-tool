@@ -79,7 +79,7 @@ export default function ManagePage() {
   return (
     <main style={{ minHeight: "100vh", background: "#0d0d0d", color: "#f5f5f5", fontFamily: "system-ui, sans-serif", padding: "32px 24px" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-        <img src="/logo.png" alt="StealHaus" style={{ height: 40, marginBottom: 4 }} />
+        <img src="/logo.png" alt="StealHaus" style={{ height: 60, marginBottom: 4 }} />
         <p style={{ color: "#999", margin: "4px 0 24px" }}>
           Manage Products · {totalCount} total items - page {page} of {totalPages || 1}
         </p>
