@@ -128,7 +128,9 @@ export default function Home() {
 
   return (
     <main style={{ maxWidth: 720, margin: "0 auto", padding: "40px 20px", color: "#f5f5f5" }}>
-      <h1 style={{ color: GOLD_LIGHT, fontSize: 26, marginBottom: 4 }}>StealHaus</h1>
+      <h1 style={{ color: GOLD_LIGHT, fontSize: 26, marginBottom: 4 }}>
+        <img src="/logo.png" alt="StealHaus" style={{ height: 40, verticalAlign: "middle", marginRight: 10 }} />
+      </h1>
       <p style={{ color: "#aaa", marginTop: 0, marginBottom: 32 }}>Product entry tool</p>
 
       {/* Paste link section */}
