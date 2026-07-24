@@ -29,8 +29,8 @@ export default function MetricsPage() {
 
   return (
     <Wrapper>
-      <h1 style={{ color: GOLD_LIGHT, fontSize: 26, marginBottom: 4 }}>StealHaus Metrics</h1>
-      <p style={{ color: "#999", marginTop: 0, marginBottom: 32 }}>Private - not linked from the public site</p>
+      <img src="/logo.png" alt="StealHaus" style={{ height: 40, marginBottom: 4 }} />
+      <p style={{ color: "#999", marginTop: 0, marginBottom: 32 }}>Metrics · Private - not linked from the public site</p>
 
       {/* Stat cards */}
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 32 }}>
