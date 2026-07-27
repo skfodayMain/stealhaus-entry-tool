@@ -4,14 +4,16 @@ import { useState, useEffect, useMemo } from "react";
 import { supabase } from "../../lib/supabase";
 
 const GOLD = "#C9A227";
-const GOLD_LIGHT = "#E8CE7A";
+const GOLD_DARK = "#8F6D16";
+const INK = "#1a1a1a";
+const CARD_BG = "#f7f5f0";
+const BORDER = "#e8e4da";
 
 export default function ShopPage() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Filters
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
   const [selectedBrands, setSelectedBrands] = useState([]);
@@ -44,7 +46,6 @@ export default function ShopPage() {
     setLoading(false);
   }
 
-  // Build filter option lists from whatever's actually in the data
   const categories = useMemo(() => {
     const set = new Set(products.map((p) => p.category).filter(Boolean));
     return ["All", ...Array.from(set).sort()];
@@ -83,244 +84,196 @@ export default function ShopPage() {
     } else if (sortBy === "price_high") {
       result = [...result].sort((a, b) => (b.current_price || 0) - (a.current_price || 0));
     }
-    // "newest" is already the default order from the query
 
     return result;
   }, [products, category, selectedBrands, selectedRetailers, gender, inStockOnly, minDiscount, search, sortBy]);
 
   function toggleBrand(name) {
-    setSelectedBrands((prev) =>
-      prev.includes(name) ? prev.filter((b) => b !== name) : [...prev, name]
-    );
+    setSelectedBrands((prev) => (prev.includes(name) ? prev.filter((b) => b !== name) : [...prev, name]));
   }
-
   function toggleRetailer(name) {
-    setSelectedRetailers((prev) =>
-      prev.includes(name) ? prev.filter((r) => r !== name) : [...prev, name]
-    );
+    setSelectedRetailers((prev) => (prev.includes(name) ? prev.filter((r) => r !== name) : [...prev, name]));
   }
 
   async function logClick(productId) {
-    // Fire-and-forget - don't block or slow down the user clicking through
     try {
       await supabase.from("product_clicks").insert([{ product_id: productId }]);
     } catch (e) {
-      // Fail silently - a missed click log should never stop someone shopping
+      // fail silently
     }
   }
 
-  return (
-    <main style={{ minHeight: "100vh", background: "#0d0d0d", color: "#f5f5f5", fontFamily: "system-ui, sans-serif" }}>
-      {/* Header */}
-      <div style={{ padding: "32px 20px 16px", borderBottom: "1px solid #222" }}>
-        <img src="/logo.png" alt="StealHaus" style={{ height: 72, marginBottom: 4 }} />
-        <p style={{ color: "#999", margin: "4px 0 20px" }}>Shop Luxury for Less</p>
+  const activeFilterCount =
+    selectedBrands.length +
+    selectedRetailers.length +
+    (gender !== "All" ? 1 : 0) +
+    (minDiscount > 0 ? 1 : 0) +
+    (inStockOnly ? 1 : 0);
 
-        {/* Search */}
+  function clearAllFilters() {
+    setSelectedBrands([]);
+    setSelectedRetailers([]);
+    setGender("All");
+    setMinDiscount(0);
+    setInStockOnly(false);
+    setSortBy("newest");
+  }
+
+  return (
+    <main style={{ minHeight: "100vh", background: "#fff", color: INK, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+      {/* Header */}
+      <div style={{ textAlign: "center", padding: "20px 20px 8px" }}>
+        <img src="/logo.png" alt="StealHaus" style={{ height: 88 }} />
+        <p style={{ color: "#777", fontSize: 13, margin: "2px 0 0", letterSpacing: 0.5 }}>SHOP LUXURY FOR LESS</p>
+      </div>
+
+      {/* Search */}
+      <div style={{ padding: "0 16px", marginBottom: 12 }}>
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by brand or item..."
+          placeholder="🔍  Search by brand or item..."
           style={{
             width: "100%",
-            maxWidth: 480,
-            padding: "10px 14px",
-            borderRadius: 8,
-            border: "1px solid #333",
-            background: "#1a1a1a",
-            color: "#fff",
+            background: CARD_BG,
+            border: `1px solid ${BORDER}`,
+            borderRadius: 10,
+            padding: "11px 14px",
             fontSize: 14,
+            color: INK,
             boxSizing: "border-box",
           }}
         />
+      </div>
 
-        {/* Category chips */}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 16 }}>
-          {categories.map((c) => (
-            <button
-              key={c}
-              onClick={() => setCategory(c)}
-              style={{
-                padding: "6px 14px",
-                borderRadius: 20,
-                border: `1px solid ${category === c ? GOLD : "#333"}`,
-                background: category === c ? GOLD : "transparent",
-                color: category === c ? "#111" : "#ccc",
-                fontSize: 13,
-                fontWeight: category === c ? 600 : 400,
-                cursor: "pointer",
-              }}
-            >
-              {c}
-            </button>
-          ))}
-        </div>
-
-        {/* Gender + sort + more filters row */}
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 16, alignItems: "center" }}>
-          {["All", "Women", "Men", "Unisex"].map((g) => (
-            <button
-              key={g}
-              onClick={() => setGender(g)}
-              style={{
-                padding: "5px 12px",
-                borderRadius: 6,
-                border: `1px solid ${gender === g ? GOLD_LIGHT : "#333"}`,
-                background: "transparent",
-                color: gender === g ? GOLD_LIGHT : "#999",
-                fontSize: 12,
-                cursor: "pointer",
-              }}
-            >
-              {g}
-            </button>
-          ))}
-
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            style={{
-              padding: "6px 10px",
-              borderRadius: 6,
-              border: "1px solid #333",
-              background: "#1a1a1a",
-              color: "#ccc",
-              fontSize: 12,
-              marginLeft: "auto",
-            }}
-          >
-            <option value="newest">Newest</option>
-            <option value="discount">Biggest discount</option>
-            <option value="price_low">Price: low to high</option>
-            <option value="price_high">Price: high to low</option>
-          </select>
-
+      {/* Category row - horizontally scrollable */}
+      <div style={{ display: "flex", gap: 8, overflowX: "auto", padding: "0 16px 12px", scrollbarWidth: "none" }}>
+        {categories.map((c) => (
           <button
-            onClick={() => setShowFilters((s) => !s)}
+            key={c}
+            onClick={() => setCategory(c)}
             style={{
-              padding: "6px 12px",
-              borderRadius: 6,
-              border: "1px solid #333",
-              background: showFilters ? "#1a1a1a" : "transparent",
-              color: "#ccc",
-              fontSize: 12,
+              flexShrink: 0,
+              padding: "7px 16px",
+              borderRadius: 20,
+              border: `1px solid ${category === c ? GOLD : BORDER}`,
+              background: category === c ? GOLD : "transparent",
+              color: category === c ? INK : "#444",
+              fontSize: 13,
+              fontWeight: category === c ? 600 : 400,
               cursor: "pointer",
+              whiteSpace: "nowrap",
             }}
           >
-            Filters {showFilters ? "▲" : "▼"}
+            {c}
           </button>
+        ))}
+      </div>
+
+      {/* Toolbar: item count + Filters button */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 16px 10px", borderBottom: `1px solid ${BORDER}` }}>
+        <span style={{ fontSize: 12, color: "#888" }}>{loading ? "Loading..." : `${filtered.length} items`}</span>
+        <button
+          onClick={() => setShowFilters(true)}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            background: INK,
+            color: "#fff",
+            border: "none",
+            padding: "7px 14px",
+            borderRadius: 20,
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: "pointer",
+          }}
+        >
+          Filters
+          {activeFilterCount > 0 && (
+            <span style={{ background: GOLD, color: "#111", fontSize: 11, fontWeight: 700, padding: "1px 6px", borderRadius: 10 }}>
+              {activeFilterCount}
+            </span>
+          )}
+          ▾
+        </button>
+      </div>
+
+      {/* Active filter chips */}
+      {activeFilterCount > 0 && (
+        <div style={{ display: "flex", gap: 6, padding: "10px 16px 4px", flexWrap: "wrap" }}>
+          {selectedBrands.map((b) => (
+            <ActiveChip key={b} label={b} onRemove={() => toggleBrand(b)} />
+          ))}
+          {selectedRetailers.map((r) => (
+            <ActiveChip key={r} label={r} onRemove={() => toggleRetailer(r)} />
+          ))}
+          {gender !== "All" && <ActiveChip label={gender} onRemove={() => setGender("All")} />}
+          {minDiscount > 0 && <ActiveChip label={`${minDiscount}%+ off`} onRemove={() => setMinDiscount(0)} />}
+          {inStockOnly && <ActiveChip label="In stock only" onRemove={() => setInStockOnly(false)} />}
         </div>
+      )}
 
-        {/* Expandable filter panel */}
-        {showFilters && (
-          <div style={{ marginTop: 16, padding: 16, background: "#1a1a1a", borderRadius: 8, display: "flex", flexDirection: "column", gap: 16 }}>
-            <div>
-              <p style={{ fontSize: 12, color: "#999", margin: "0 0 8px" }}>Brand</p>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {brands.map((b) => (
-                  <button
-                    key={b}
-                    onClick={() => toggleBrand(b)}
-                    style={{
-                      padding: "4px 10px",
-                      borderRadius: 14,
-                      border: `1px solid ${selectedBrands.includes(b) ? GOLD : "#333"}`,
-                      background: selectedBrands.includes(b) ? GOLD : "transparent",
-                      color: selectedBrands.includes(b) ? "#111" : "#ccc",
-                      fontSize: 12,
-                      cursor: "pointer",
-                    }}
-                  >
-                    {b}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <p style={{ fontSize: 12, color: "#999", margin: "0 0 8px" }}>Retailer</p>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {retailers.map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => toggleRetailer(r)}
-                    style={{
-                      padding: "4px 10px",
-                      borderRadius: 14,
-                      border: `1px solid ${selectedRetailers.includes(r) ? GOLD : "#333"}`,
-                      background: selectedRetailers.includes(r) ? GOLD : "transparent",
-                      color: selectedRetailers.includes(r) ? "#111" : "#ccc",
-                      fontSize: 12,
-                      cursor: "pointer",
-                    }}
-                  >
-                    {r}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "center" }}>
-              <div>
-                <p style={{ fontSize: 12, color: "#999", margin: "0 0 8px" }}>Minimum discount</p>
-                <div style={{ display: "flex", gap: 6 }}>
-                  {[0, 30, 50, 70].map((d) => (
-                    <button
-                      key={d}
-                      onClick={() => setMinDiscount(d)}
-                      style={{
-                        padding: "4px 10px",
-                        borderRadius: 14,
-                        border: `1px solid ${minDiscount === d ? GOLD : "#333"}`,
-                        background: minDiscount === d ? GOLD : "transparent",
-                        color: minDiscount === d ? "#111" : "#ccc",
-                        fontSize: 12,
-                        cursor: "pointer",
-                      }}
-                    >
-                      {d === 0 ? "Any" : `${d}%+`}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#ccc", cursor: "pointer" }}>
-                <input type="checkbox" checked={inStockOnly} onChange={(e) => setInStockOnly(e.target.checked)} />
-                In stock only
-              </label>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Results count */}
-      <div style={{ padding: "16px 20px 0", fontSize: 13, color: "#777" }}>
-        {loading ? "Loading..." : `${filtered.length} item${filtered.length !== 1 ? "s" : ""}`}
-      </div>
-
-      {error && <p style={{ padding: "0 20px", color: "#ff8080" }}>{error}</p>}
+      {error && <p style={{ padding: "0 16px", color: "#c0392b" }}>{error}</p>}
 
       {/* Grid */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-          gap: 20,
-          padding: 20,
-        }}
-      >
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12, padding: "14px 16px 40px" }}>
         {filtered.map((p) => (
           <ProductCard key={p.id} product={p} onClickItem={logClick} />
         ))}
       </div>
 
       {!loading && filtered.length === 0 && (
-        <p style={{ textAlign: "center", color: "#666", padding: 60 }}>
-          Nothing matches those filters yet — try widening your search.
-        </p>
+        <p style={{ textAlign: "center", color: "#999", padding: 60 }}>Nothing matches those filters yet — try widening your search.</p>
+      )}
+
+      {/* Bottom sheet */}
+      {showFilters && (
+        <FilterSheet
+          sortBy={sortBy}
+          setSortBy={setSortBy}
+          gender={gender}
+          setGender={setGender}
+          brands={brands}
+          selectedBrands={selectedBrands}
+          toggleBrand={toggleBrand}
+          retailers={retailers}
+          selectedRetailers={selectedRetailers}
+          toggleRetailer={toggleRetailer}
+          minDiscount={minDiscount}
+          setMinDiscount={setMinDiscount}
+          inStockOnly={inStockOnly}
+          setInStockOnly={setInStockOnly}
+          onClear={clearAllFilters}
+          onClose={() => setShowFilters(false)}
+          resultCount={filtered.length}
+        />
       )}
     </main>
+  );
+}
+
+function ActiveChip({ label, onRemove }) {
+  return (
+    <div
+      style={{
+        background: "#fff",
+        border: `1px solid ${GOLD}`,
+        color: GOLD_DARK,
+        fontSize: 12,
+        padding: "4px 10px",
+        borderRadius: 14,
+        display: "flex",
+        alignItems: "center",
+        gap: 5,
+      }}
+    >
+      {label}
+      <span onClick={onRemove} style={{ cursor: "pointer", fontWeight: 700 }}>
+        ✕
+      </span>
+    </div>
   );
 }
 
@@ -336,20 +289,11 @@ function ProductCard({ product, onClickItem }) {
       onClick={() => onClickItem && onClickItem(product.id)}
       style={{ textDecoration: "none", color: "inherit", display: "block" }}
     >
-      <div style={{ position: "relative", background: "#1a1a1a", borderRadius: 10, overflow: "hidden" }}>
-        <div style={{ position: "relative", aspectRatio: "3/4", background: "#111" }}>
+      <div style={{ background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
+        <div style={{ position: "relative", aspectRatio: "3/4", background: "#e5e0d3" }}>
           {product.image_url ? (
-            <img
-              src={product.image_url}
-              alt={product.name}
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
-              loading="lazy"
-            />
-          ) : (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#444", fontSize: 12 }}>
-              No image
-            </div>
-          )}
+            <img src={product.image_url} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} loading="lazy" />
+          ) : null}
 
           {discount ? (
             <span
@@ -358,10 +302,10 @@ function ProductCard({ product, onClickItem }) {
                 top: 8,
                 left: 8,
                 background: GOLD,
-                color: "#111",
-                fontSize: 11,
+                color: "#1a1a1a",
+                fontSize: 10,
                 fontWeight: 700,
-                padding: "3px 8px",
+                padding: "3px 7px",
                 borderRadius: 4,
               }}
             >
@@ -370,68 +314,156 @@ function ProductCard({ product, onClickItem }) {
           ) : null}
 
           {product.stock_status === "low_stock" && (
-            <span
-              style={{
-                position: "absolute",
-                bottom: 8,
-                left: 8,
-                background: "rgba(0,0,0,0.75)",
-                color: GOLD_LIGHT,
-                fontSize: 10,
-                padding: "3px 8px",
-                borderRadius: 4,
-              }}
-            >
+            <span style={{ position: "absolute", bottom: 8, left: 8, background: "rgba(0,0,0,0.7)", color: "#fff", fontSize: 10, padding: "3px 8px", borderRadius: 4 }}>
               Low stock
             </span>
           )}
           {product.stock_status === "out_of_stock" && (
-            <span
-              style={{
-                position: "absolute",
-                bottom: 8,
-                left: 8,
-                background: "rgba(0,0,0,0.75)",
-                color: "#999",
-                fontSize: 10,
-                padding: "3px 8px",
-                borderRadius: 4,
-              }}
-            >
+            <span style={{ position: "absolute", bottom: 8, left: 8, background: "rgba(0,0,0,0.7)", color: "#ddd", fontSize: 10, padding: "3px 8px", borderRadius: 4 }}>
               Sold out
             </span>
           )}
         </div>
 
-        <div style={{ padding: "10px 12px 14px" }}>
-          <p style={{ margin: 0, fontSize: 12, color: GOLD_LIGHT, textTransform: "uppercase", letterSpacing: 0.5 }}>
+        <div style={{ padding: "9px 10px 12px" }}>
+          <p style={{ margin: 0, fontSize: 11, color: GOLD_DARK, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600 }}>
             {product.brands?.name}
           </p>
-          <p
-            style={{
-              margin: "2px 0 8px",
-              fontSize: 13,
-              color: "#ddd",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
+          <p style={{ margin: "3px 0 6px", fontSize: 12, color: "#333", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {product.name}
           </p>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
             {product.original_price && product.original_price !== product.current_price && (
-              <span style={{ fontSize: 12, color: "#777", textDecoration: "line-through" }}>
+              <span style={{ fontSize: 11, color: "#999", textDecoration: "line-through" }}>
                 {product.currency} {product.original_price}
               </span>
             )}
-            <span style={{ fontSize: 15, color: "#fff", fontWeight: 700 }}>
+            <span style={{ fontSize: 14, color: "#111", fontWeight: 700 }}>
               {product.currency} {product.current_price}
             </span>
           </div>
-          <p style={{ margin: "4px 0 0", fontSize: 11, color: "#666" }}>{product.retailers?.name}</p>
+          <p style={{ margin: "4px 0 0", fontSize: 10, color: "#aaa" }}>{product.retailers?.name}</p>
         </div>
       </div>
     </a>
+  );
+}
+
+function FilterSheet({
+  sortBy,
+  setSortBy,
+  gender,
+  setGender,
+  brands,
+  selectedBrands,
+  toggleBrand,
+  retailers,
+  selectedRetailers,
+  toggleRetailer,
+  minDiscount,
+  setMinDiscount,
+  inStockOnly,
+  setInStockOnly,
+  onClear,
+  onClose,
+  resultCount,
+}) {
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "flex-end", zIndex: 100 }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ background: "#fff", width: "100%", maxWidth: 600, margin: "0 auto", borderRadius: "20px 20px 0 0", padding: "18px 20px 24px", maxHeight: "82vh", overflowY: "auto" }}
+      >
+        <div style={{ width: 40, height: 4, background: "#ddd", borderRadius: 2, margin: "0 auto 14px" }} />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: INK }}>Filters</h2>
+          <span onClick={onClear} style={{ fontSize: 13, color: GOLD_DARK, cursor: "pointer" }}>
+            Clear all
+          </span>
+        </div>
+
+        <FilterGroup label="Sort by">
+          {["newest", "discount", "price_low", "price_high"].map((val) => (
+            <Option
+              key={val}
+              label={{ newest: "Newest", discount: "Biggest discount", price_low: "Price: low to high", price_high: "Price: high to low" }[val]}
+              selected={sortBy === val}
+              onClick={() => setSortBy(val)}
+            />
+          ))}
+        </FilterGroup>
+
+        <FilterGroup label="Gender">
+          {["All", "Women", "Men", "Unisex"].map((g) => (
+            <Option key={g} label={g} selected={gender === g} onClick={() => setGender(g)} />
+          ))}
+        </FilterGroup>
+
+        {brands.length > 0 && (
+          <FilterGroup label="Brand">
+            {brands.map((b) => (
+              <Option key={b} label={b} selected={selectedBrands.includes(b)} onClick={() => toggleBrand(b)} />
+            ))}
+          </FilterGroup>
+        )}
+
+        {retailers.length > 0 && (
+          <FilterGroup label="Retailer">
+            {retailers.map((r) => (
+              <Option key={r} label={r} selected={selectedRetailers.includes(r)} onClick={() => toggleRetailer(r)} />
+            ))}
+          </FilterGroup>
+        )}
+
+        <FilterGroup label="Minimum discount">
+          {[0, 30, 50, 70].map((d) => (
+            <Option key={d} label={d === 0 ? "Any" : `${d}%+`} selected={minDiscount === d} onClick={() => setMinDiscount(d)} />
+          ))}
+        </FilterGroup>
+
+        <FilterGroup label="Availability">
+          <Option label="In stock only" selected={inStockOnly} onClick={() => setInStockOnly(!inStockOnly)} />
+        </FilterGroup>
+
+        <div
+          onClick={onClose}
+          style={{ background: INK, color: "#fff", textAlign: "center", padding: 14, borderRadius: 10, fontSize: 15, fontWeight: 600, marginTop: 8, cursor: "pointer" }}
+        >
+          Show {resultCount} items
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FilterGroup({ label, children }) {
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <p style={{ fontSize: 12, color: "#888", textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600, margin: "0 0 10px" }}>{label}</p>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{children}</div>
+    </div>
+  );
+}
+
+function Option({ label, selected, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: "8px 14px",
+        borderRadius: 18,
+        border: `1px solid ${selected ? GOLD : BORDER}`,
+        background: selected ? GOLD : "transparent",
+        color: selected ? INK : "#444",
+        fontSize: 13,
+        fontWeight: selected ? 600 : 400,
+        cursor: "pointer",
+      }}
+    >
+      {label}
+    </button>
   );
 }
