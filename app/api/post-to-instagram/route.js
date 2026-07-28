@@ -47,7 +47,7 @@ export async function POST(request) {
   try {
     // Step 1: create a media container
     const createRes = await fetch(
-      `https://graph.facebook.com/v20.0/${IG_ID}/media`,
+      `https://graph.instagram.com/v21.0/${IG_ID}/media`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -75,7 +75,7 @@ export async function POST(request) {
 
     // Step 2: publish the container
     const publishRes = await fetch(
-      `https://graph.facebook.com/v20.0/${IG_ID}/media_publish`,
+      `https://graph.instagram.com/v21.0/${IG_ID}/media_publish`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
