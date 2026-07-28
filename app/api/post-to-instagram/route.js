@@ -13,13 +13,23 @@
 
 import { NextResponse } from 'next/server';
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type'
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+}
+
 export async function POST(request) {
   const body = await request.json().catch(() => null);
 
   if (!body || !body.image_url || !body.caption) {
     return NextResponse.json(
       { error: 'Both image_url and caption are required' },
-      { status: 400 }
+      { status: 400, headers: CORS_HEADERS }
     );
   }
 
@@ -30,7 +40,7 @@ export async function POST(request) {
   if (!IG_ID || !TOKEN) {
     return NextResponse.json(
       { error: 'Server is missing IG_BUSINESS_ACCOUNT_ID or IG_ACCESS_TOKEN' },
-      { status: 500 }
+      { status: 500, headers: CORS_HEADERS }
     );
   }
 
@@ -53,7 +63,7 @@ export async function POST(request) {
     if (!createRes.ok) {
       return NextResponse.json(
         { error: 'Failed to create media container', details: createData },
-        { status: 500 }
+        { status: 500, headers: CORS_HEADERS }
       );
     }
 
@@ -76,15 +86,15 @@ export async function POST(request) {
     if (!publishRes.ok) {
       return NextResponse.json(
         { error: 'Failed to publish media', details: publishData },
-        { status: 500 }
+        { status: 500, headers: CORS_HEADERS }
       );
     }
 
-    return NextResponse.json({ success: true, post_id: publishData.id });
+    return NextResponse.json({ success: true, post_id: publishData.id }, { headers: CORS_HEADERS });
   } catch (err) {
     return NextResponse.json(
       { error: 'Unexpected error', details: err.message },
-      { status: 500 }
+      { status: 500, headers: CORS_HEADERS }
     );
   }
 }
