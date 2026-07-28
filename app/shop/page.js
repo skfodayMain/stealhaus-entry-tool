@@ -122,13 +122,12 @@ export default function ShopPage() {
   return (
     <main style={{ minHeight: "100vh", background: "#fff", color: INK, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
       {/* Header */}
-      <div style={{ textAlign: "center", padding: "20px 20px 8px" }}>
-        <img src="/logo.png" alt="StealHaus" style={{ height: 88 }} />
-        <p style={{ color: "#777", fontSize: 13, margin: "2px 0 0", letterSpacing: 0.5 }}>SHOP LUXURY FOR LESS</p>
+      <div style={{ textAlign: "center" }}>
+        <img src="/banner.jpg" alt="StealHaus - Luxury for Less" style={{ width: "100%", height: "auto", display: "block" }} />
       </div>
 
       {/* Search */}
-      <div style={{ padding: "0 16px", marginBottom: 12 }}>
+      <div style={{ padding: "16px 16px 12px" }}>
         <input
           type="text"
           value={search}
@@ -380,9 +379,28 @@ function FilterSheet({
         <div style={{ width: 40, height: 4, background: "#ddd", borderRadius: 2, margin: "0 auto 14px" }} />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: INK }}>Filters</h2>
-          <span onClick={onClear} style={{ fontSize: 13, color: GOLD_DARK, cursor: "pointer" }}>
-            Clear all
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <span onClick={onClear} style={{ fontSize: 13, color: GOLD_DARK, cursor: "pointer" }}>
+              Clear all
+            </span>
+            <span
+              onClick={onClose}
+              style={{
+                fontSize: 15,
+                color: "#666",
+                cursor: "pointer",
+                width: 28,
+                height: 28,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: "50%",
+                background: "#f0f0f0",
+              }}
+            >
+              ✕
+            </span>
+          </div>
         </div>
 
         <FilterGroup label="Sort by">
