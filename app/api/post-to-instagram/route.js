@@ -73,6 +73,36 @@ export async function POST(request) {
 
     const creationId = createData.id;
 
+    // Instagram processes the image asynchronously after the container is
+    // created. Publishing too early gives "Media ID is not available" —
+    // so we poll the container's status until it reports FINISHED.
+    let ready = false;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const statusRes = await fetch(
+        `https://graph.instagram.com/v21.0/${creationId}?fields=status_code&access_token=${TOKEN}`
+      );
+      const statusData = await statusRes.json();
+      if (statusData.status_code === 'FINISHED') {
+        ready = true;
+        break;
+      }
+      if (statusData.status_code === 'ERROR') {
+        return NextResponse.json(
+          { error: 'Instagram failed while processing the image', details: statusData },
+          { status: 500, headers: CORS_HEADERS }
+        );
+      }
+      // wait 1.5s before checking again
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    }
+
+    if (!ready) {
+      return NextResponse.json(
+        { error: 'Instagram took too long to process the image — try again in a moment' },
+        { status: 504, headers: CORS_HEADERS }
+      );
+    }
+
     // Step 2: publish the container
     const publishRes = await fetch(
       `https://graph.instagram.com/v21.0/${IG_ID}/media_publish`,
