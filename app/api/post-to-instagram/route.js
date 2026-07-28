@@ -34,8 +34,8 @@ export async function POST(request) {
   }
 
   const { image_url, caption } = body;
-  const IG_ID = process.env.IG_BUSINESS_ACCOUNT_ID;
-  const TOKEN = process.env.IG_ACCESS_TOKEN;
+  const IG_ID = (process.env.IG_BUSINESS_ACCOUNT_ID || '').trim().replace(/^["']|["']$/g, '');
+  const TOKEN = (process.env.IG_ACCESS_TOKEN || '').trim().replace(/^["']|["']$/g, '');
 
   if (!IG_ID || !TOKEN) {
     return NextResponse.json(
@@ -62,7 +62,11 @@ export async function POST(request) {
 
     if (!createRes.ok) {
       return NextResponse.json(
-        { error: 'Failed to create media container', details: createData },
+        {
+          error: 'Failed to create media container',
+          details: createData,
+          diagnostic: { token_length: TOKEN.length, ig_id_length: IG_ID.length }
+        },
         { status: 500, headers: CORS_HEADERS }
       );
     }
