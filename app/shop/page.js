@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "../../lib/supabase";
 
 const GOLD = "#C9A227";
@@ -8,11 +8,20 @@ const GOLD_DARK = "#8F6D16";
 const INK = "#1a1a1a";
 const CARD_BG = "#f7f5f0";
 const BORDER = "#e8e4da";
+const PAGE_SIZE = 60;
 
 export default function ShopPage() {
   const [products, setProducts] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
+
+  // Filter option lists - fetched once, independent of what's currently loaded,
+  // so they always show every real option rather than just what's on screen.
+  const [categoryOptions, setCategoryOptions] = useState(["All"]);
+  const [brandOptions, setBrandOptions] = useState([]); // [{id, name}]
+  const [retailerOptions, setRetailerOptions] = useState([]); // [{id, name}]
 
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
@@ -24,69 +33,112 @@ export default function ShopPage() {
   const [inStockOnly, setInStockOnly] = useState(false);
   const [sortBy, setSortBy] = useState("newest");
 
+  const isFirstRun = useRef(true);
+  const searchDebounce = useRef(null);
+
+  // Load filter option lists once on mount
   useEffect(() => {
-    loadProducts();
+    loadFilterOptions();
+    loadProducts(0);
   }, []);
 
-  async function loadProducts() {
-    setLoading(true);
-    setError("");
-    const { data, error: fetchError } = await supabase
-      .from("products")
-      .select("*, brands(name), retailers(name)")
-      .eq("still_in_feed", true)
-      .order("created_at", { ascending: false })
-      .limit(200);
-
-    if (fetchError) {
-      setError(fetchError.message);
-    } else {
-      setProducts(data || []);
+  // Re-fetch from the start whenever a filter changes (debounced for search)
+  useEffect(() => {
+    if (isFirstRun.current) {
+      isFirstRun.current = false;
+      return;
     }
-    setLoading(false);
+    clearTimeout(searchDebounce.current);
+    searchDebounce.current = setTimeout(() => {
+      loadProducts(0);
+    }, 350);
+    return () => clearTimeout(searchDebounce.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, category, selectedBrands, selectedRetailers, gender, minDiscount, inStockOnly, sortBy]);
+
+  async function loadFilterOptions() {
+    const [{ data: cats }, { data: brandsData }, { data: retailersData }] = await Promise.all([
+      supabase.from("products").select("category").eq("still_in_feed", true),
+      supabase.from("brands").select("id, name").order("name"),
+      supabase.from("retailers").select("id, name").order("name"),
+    ]);
+
+    if (cats) {
+      const uniqueCats = Array.from(new Set(cats.map((c) => c.category).filter(Boolean))).sort();
+      setCategoryOptions(["All", ...uniqueCats]);
+    }
+    if (brandsData) setBrandOptions(brandsData);
+    if (retailersData) setRetailerOptions(retailersData);
   }
 
-  const categories = useMemo(() => {
-    const set = new Set(products.map((p) => p.category).filter(Boolean));
-    return ["All", ...Array.from(set).sort()];
-  }, [products]);
+  async function loadProducts(offset) {
+    if (offset === 0) setLoading(true);
+    else setLoadingMore(true);
+    setError("");
 
-  const brands = useMemo(() => {
-    const set = new Set(products.map((p) => p.brands?.name).filter(Boolean));
-    return Array.from(set).sort();
-  }, [products]);
+    try {
+      let query = supabase
+        .from("products")
+        .select("*, brands(name), retailers(name)", { count: "exact" })
+        .eq("still_in_feed", true);
 
-  const retailers = useMemo(() => {
-    const set = new Set(products.map((p) => p.retailers?.name).filter(Boolean));
-    return Array.from(set).sort();
-  }, [products]);
+      if (category !== "All") query = query.eq("category", category);
+      if (gender !== "All") query = query.eq("gender", gender.toLowerCase());
+      if (inStockOnly) query = query.neq("stock_status", "out_of_stock");
+      if (minDiscount > 0) query = query.gte("discount_percentage", minDiscount);
 
-  const filtered = useMemo(() => {
-    let result = products.filter((p) => {
-      if (category !== "All" && p.category !== category) return false;
-      if (selectedBrands.length > 0 && !selectedBrands.includes(p.brands?.name)) return false;
-      if (selectedRetailers.length > 0 && !selectedRetailers.includes(p.retailers?.name)) return false;
-      if (gender !== "All" && p.gender !== gender.toLowerCase()) return false;
-      if (inStockOnly && p.stock_status === "out_of_stock") return false;
-      if (minDiscount > 0 && (p.discount_percentage || 0) < minDiscount) return false;
-      if (search.trim()) {
-        const q = search.toLowerCase();
-        const haystack = `${p.brands?.name || ""} ${p.name || ""}`.toLowerCase();
-        if (!haystack.includes(q)) return false;
+      if (selectedBrands.length > 0) {
+        const ids = brandOptions.filter((b) => selectedBrands.includes(b.name)).map((b) => b.id);
+        if (ids.length > 0) query = query.in("brand_id", ids);
       }
-      return true;
-    });
+      if (selectedRetailers.length > 0) {
+        const ids = retailerOptions.filter((r) => selectedRetailers.includes(r.name)).map((r) => r.id);
+        if (ids.length > 0) query = query.in("retailer_id", ids);
+      }
 
-    if (sortBy === "discount") {
-      result = [...result].sort((a, b) => (b.discount_percentage || 0) - (a.discount_percentage || 0));
-    } else if (sortBy === "price_low") {
-      result = [...result].sort((a, b) => (a.current_price || 0) - (b.current_price || 0));
-    } else if (sortBy === "price_high") {
-      result = [...result].sort((a, b) => (b.current_price || 0) - (a.current_price || 0));
+      if (search.trim()) {
+        const term = search.trim().replace(/[,()%]/g, "");
+        const matchingBrandIds = brandOptions
+          .filter((b) => b.name.toLowerCase().includes(term.toLowerCase()))
+          .map((b) => b.id);
+
+        const orParts = [`name.ilike.%${term}%`];
+        if (matchingBrandIds.length > 0) {
+          orParts.push(`brand_id.in.(${matchingBrandIds.join(",")})`);
+        }
+        query = query.or(orParts.join(","));
+      }
+
+      if (sortBy === "discount") {
+        query = query.order("discount_percentage", { ascending: false, nullsFirst: false });
+      } else if (sortBy === "price_low") {
+        query = query.order("current_price", { ascending: true });
+      } else if (sortBy === "price_high") {
+        query = query.order("current_price", { ascending: false });
+      } else {
+        query = query.order("created_at", { ascending: false });
+      }
+
+      query = query.range(offset, offset + PAGE_SIZE - 1);
+
+      const { data, error: fetchError, count } = await query;
+
+      if (fetchError) {
+        setError(fetchError.message);
+      } else {
+        setProducts((prev) => (offset === 0 ? data || [] : [...prev, ...(data || [])]));
+        if (count !== null) setTotalCount(count);
+      }
+    } catch (e) {
+      setError(e.message);
     }
+    setLoading(false);
+    setLoadingMore(false);
+  }
 
-    return result;
-  }, [products, category, selectedBrands, selectedRetailers, gender, inStockOnly, minDiscount, search, sortBy]);
+  function handleLoadMore() {
+    loadProducts(products.length);
+  }
 
   function toggleBrand(name) {
     setSelectedBrands((prev) => (prev.includes(name) ? prev.filter((b) => b !== name) : [...prev, name]));
@@ -146,9 +198,9 @@ export default function ShopPage() {
         />
       </div>
 
-      {/* Category row - horizontally scrollable */}
+      {/* Category row */}
       <div style={{ display: "flex", gap: 8, overflowX: "auto", padding: "0 16px 12px", scrollbarWidth: "none" }}>
-        {categories.map((c) => (
+        {categoryOptions.map((c) => (
           <button
             key={c}
             onClick={() => setCategory(c)}
@@ -170,9 +222,11 @@ export default function ShopPage() {
         ))}
       </div>
 
-      {/* Toolbar: item count + Filters button */}
+      {/* Toolbar */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 16px 10px", borderBottom: `1px solid ${BORDER}` }}>
-        <span style={{ fontSize: 12, color: "#888" }}>{loading ? "Loading..." : `${filtered.length} items`}</span>
+        <span style={{ fontSize: 12, color: "#888" }}>
+          {loading ? "Loading..." : `Showing ${products.length} of ${totalCount} items`}
+        </span>
         <button
           onClick={() => setShowFilters(true)}
           style={{
@@ -217,27 +271,47 @@ export default function ShopPage() {
       {error && <p style={{ padding: "0 16px", color: "#c0392b" }}>{error}</p>}
 
       {/* Grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12, padding: "14px 16px 40px" }}>
-        {filtered.map((p) => (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12, padding: "14px 16px 24px" }}>
+        {products.map((p) => (
           <ProductCard key={p.id} product={p} onClickItem={logClick} />
         ))}
       </div>
 
-      {!loading && filtered.length === 0 && (
+      {!loading && products.length === 0 && (
         <p style={{ textAlign: "center", color: "#999", padding: 60 }}>Nothing matches those filters yet — try widening your search.</p>
       )}
 
-      {/* Bottom sheet */}
+      {!loading && products.length < totalCount && (
+        <div style={{ textAlign: "center", padding: "0 16px 40px" }}>
+          <button
+            onClick={handleLoadMore}
+            disabled={loadingMore}
+            style={{
+              padding: "10px 28px",
+              borderRadius: 24,
+              border: `1px solid ${INK}`,
+              background: loadingMore ? "#eee" : "#fff",
+              color: INK,
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: loadingMore ? "not-allowed" : "pointer",
+            }}
+          >
+            {loadingMore ? "Loading..." : `Load more (${totalCount - products.length} remaining)`}
+          </button>
+        </div>
+      )}
+
       {showFilters && (
         <FilterSheet
           sortBy={sortBy}
           setSortBy={setSortBy}
           gender={gender}
           setGender={setGender}
-          brands={brands}
+          brands={brandOptions.map((b) => b.name)}
           selectedBrands={selectedBrands}
           toggleBrand={toggleBrand}
-          retailers={retailers}
+          retailers={retailerOptions.map((r) => r.name)}
           selectedRetailers={selectedRetailers}
           toggleRetailer={toggleRetailer}
           minDiscount={minDiscount}
@@ -246,7 +320,7 @@ export default function ShopPage() {
           setInStockOnly={setInStockOnly}
           onClear={clearAllFilters}
           onClose={() => setShowFilters(false)}
-          resultCount={filtered.length}
+          resultCount={totalCount}
         />
       )}
     </main>
